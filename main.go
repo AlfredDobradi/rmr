@@ -87,7 +87,7 @@ func Retrieve(conn *badger.DB, key []byte) ([]byte, error) {
 	var value []byte
 
 	err := conn.View(func(tx *badger.Txn) error {
-		item, err := tx.Get([]byte("Testing_1"))
+		item, err := tx.Get([]byte(key))
 		if err != nil {
 			return err
 		}
