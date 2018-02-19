@@ -2,29 +2,35 @@ package main
 
 import (
 	"log"
+	"os"
 
-	"github.com/dgraph-io/badger"
+	"github.com/alfreddobradi/rmr/internal/cache"
+	"github.com/huin/goupnp"
+
 	"github.com/graphql-go/graphql"
 )
 
 func main() {
 
-	opts := badger.DefaultOptions
-	opts.Dir = "/tmp/badger"
-	opts.ValueDir = "/tmp/badger"
-	db, err := badger.Open(opts)
+	x, _ := goupnp.DiscoverDevices("ssdp:all")
+
+	log.Printf("%+v", x)
+
+	os.Exit(1)
+
+	db, err := cache.New()
 	if err != nil {
-		log.Fatalf("Error opening DB: %+v", err)
+		log.Fatalf("Error getting Badger instance: %+v", err)
 	}
 
-	cache := map[string]string{
+	cacheData := map[string]string{
 		"Testing_1": "hi mom",
 		"Testing_2": "hi dad",
 	}
 
-	_ = Persist(db, cache)
+	_ = cache.Persist(db, cacheData)
 
-	val, err := Retrieve(db, []byte("Testing_1"))
+	val, err := cache.Retrieve(db, []byte("Testing_1"))
 	if err != nil {
 		log.Fatalf("Error reading stuff: %+v", err)
 	}
@@ -46,7 +52,7 @@ func main() {
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 				if p.Args["hash"] != nil {
 					key := p.Args["hash"]
-					value, err := Retrieve(db, []byte(key.(string)))
+					value, err := cache.Retrieve(db, []byte(key.(string)))
 					if err != nil {
 						return nil, err
 					}
@@ -80,43 +86,4 @@ func main() {
 	// log.Println(db)
 
 	db.Close()
-}
-
-// Retrieve gets an element from Badger
-func Retrieve(conn *badger.DB, key []byte) ([]byte, error) {
-	var value []byte
-
-	err := conn.View(func(tx *badger.Txn) error {
-		item, err := tx.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-
-		val, err := item.Value()
-		if err != nil {
-			return err
-		}
-
-		value = val
-
-		return nil
-	})
-
-	return value, err
-}
-
-// Persist writes data to Badger
-func Persist(conn *badger.DB, data map[string]string) error {
-	err := conn.Update(func(tx *badger.Txn) error {
-		for k, v := range data {
-			err := tx.Set([]byte(k), []byte(v))
-			if err != nil {
-				return err
-			}
-		}
-
-		_ = tx.Commit(nil)
-		return nil
-	})
-	return err
 }
